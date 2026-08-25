@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>線上留言板</title>
+  <style>
+    body { font-family: Arial, sans-serif; max-width: 600px; margin: 30px auto; padding: 0 15px; background-color: #f9f9f9; }
+    h1 { text-align: center; color: #333; }
+    .card { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); margin-bottom: 20px; }
+    .form-group { margin-bottom: 15px; }
+    label { display: block; margin-bottom: 5px; font-weight: bold; }
+    input[type="text"], textarea, select { width: 100%; padding: 8px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 4px; }
+    .checkbox-group { display: flex; align-items: center; gap: 8px; }
+    button { background: #007bff; color: white; border: none; padding: 10px 15px; border-radius: 4px; cursor: pointer; width: 100%; font-size: 16px; }
+    button:hover { background: #0056b3; }
+    .msg-item { border-bottom: 1px solid #eee; padding: 10px 0; }
+    .msg-header { font-weight: bold; color: #555; display: flex; justify-content: space-between; }
+    .rating { color: #ff9800; }
+  </style>
+</head>
+<body>
+
+  <h1>線上留言板</h1>
+
+  <!-- 留言表單 -->
+  <div class="card">
+    <h3>新增留言</h3>
+    <form id="commentForm">
+      <div class="form-group">
+        <label>姓名 (文字)</label>
+        <input type="text" id="name" required placeholder="請輸入姓名">
+      </div>
+      <div class="form-group">
+        <label>評分 (數字 1-5)</label>
+        <select id="rating">
+          <option value="5">5 顆星</option>
+          <option value="4">4 顆星</option>
+          <option value="3">3 顆星</option>
+          <option value="2">2 顆星</option>
+          <option value="1">1 顆星</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>留言內容 (文字)</label>
+        <textarea id="content" rows="3" required placeholder="寫點什麼吧..."></textarea>
+      </div>
+      <div class="form-group checkbox-group">
+        <input type="checkbox" id="isPublic" checked>
+        <label for="isPublic" style="margin:0;">公開此留言 (Bool 布林值)</label>
+      </div>
+      <button type="submit" id="submitBtn">送出留言</button>
+    </form>
+  </div>
+
+  <!-- 留言列表 -->
+  <div class="card">
+    <h3>最新留言</h3>
+    <div id="loading">載入中...</div>
+    <div id="messagesList"></div>
+  </div>
+
+  <script>
+    // ⚠️ 貼上你在 Google Apps Script 取得的 API 網址
+    const API_URL = "YOUR_GAS_API_URL";
+
+    // 載入留言列表
+    async function fetchMessages() {
+      const listDiv = document.getElementById('messagesList');
+      const loading = document.getElementById('loading');
+      try {
+        const res = await fetch(API_URL);
+        const data = await res.json();
+        
+        loading.style.display = 'none';
+        listDiv.innerHTML = '';
+
+        // 只顯示 isPublic === true 的留言
+        const publicMessages = data.filter(item => item.isPublic);
+
+        if (publicMessages.length === 0) {
+          listDiv.innerHTML = '<p>目前沒有留言。</p>';
+          return;
+        }
+
+        publicMessages.reverse().forEach(item => {
+          const div = document.createElement('div');
+          div.className = 'msg-item';
+          div.innerHTML = `
+            <div class="msg-header">
+              <span>${escapeHtml(item.name)}</span>
+              <span class="rating">★ ${item.rating}</span>
+            </div>
+            <p style="margin: 8px 0 0 0; color: #333;">${escapeHtml(item.content)}</p>
+          `;
+          listDiv.appendChild(div);
+        });
+      } catch (err) {
+        loading.innerText = '載入失敗，請稍後重試。';
+        console.error(err);
+      }
+    }
+
+    // 送出表單
+    document.getElementById('commentForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const btn = document.getElementById('submitBtn');
+      btn.disabled = true;
+      btn.innerText = '送出中...';
+
+      const payload = {
+        name: document.getElementById('name').value,
+        rating: Number(document.getElementById('rating').value), // 數字
+        content: document.getElementById('content').value,
+        isPublic: document.getElementById('isPublic').checked // Bool
+      };
+
+      try {
+        await fetch(API_URL, {
+          method: 'POST',
+          body: JSON.stringify(payload)
+        });
+
+        alert('留言成功！');
+        document.getElementById('commentForm').reset();
+        document.getElementById('isPublic').checked = true;
+        fetchMessages();
+      } catch (err) {
+        alert('送出失敗');
+        console.error(err);
+      } finally {
+        btn.disabled = false;
+        btn.innerText = '送出留言';
+      }
+    });
+
+    // 簡易 XSS 防護
+    function escapeHtml(text) {
+      return String(text).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    }
+
+    // 初始化載入
+    fetchMessages();
+  </script>
+</body>
+</html>
